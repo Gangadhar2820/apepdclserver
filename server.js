@@ -50,4 +50,27 @@ app.get("/searchareacode/:areacode",async (req,res)=>{
   }
 })
 
+
+app.post("/updateconsumer/:areacode/:serviceno",async (req,res)=>{
+  try {
+    const receivedData = req.body;
+
+    const client = new MongoClient(URL);
+    await client.connect();
+    await client.db("admin").command({ ping: 1 });
+    const dbName = "apepdclConsumers";
+    const db = client.db(dbName);
+    const areacode = req.params.areacode.toString();
+    const collectionName = ( areacode + "_CONSUMERS").toUpperCase();
+    const serviceno = req.params.serviceno.toString().toUpperCase();
+    let collection = db.collection(collectionName);
+    let result = await collection.updateOne({ SERVICE_NO: serviceno },{$set:receivedData});
+    res.send({AREA_CODE:areacode,SERVICE_NO:serviceno,result:result});
+
+  } catch (err) {
+    console.log(err);
+  }
+
+})
+
 app.listen(PORT, (_) => console.log(`Server running on port ${PORT}`));
