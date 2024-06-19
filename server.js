@@ -1,76 +1,92 @@
-const express = require("express");
-const app = express();
+require('dotenv').config();
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const { MongoClient } = require('mongodb');
 
-const bodyParser = require("body-parser");
+const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-
-const cors = require("cors");
 app.use(cors());
 
 const PORT = process.env.PORT || 4000;
-const URL =
-  "mongodb+srv://gangadhar2820:Ganga2820@apepdcl.zxhcewu.mongodb.net/?" +
-  "retryWrites=true&w=majority&appName=apepdcl";
+const URL = "mongodb+srv://gangadhar2820:Ganga2820@apepdcl.zxhcewu.mongodb.net/?retryWrites=true&w=majority&appName=apepdcl";
 
+let client;
+let db;
 
-const { MongoClient } = require("mongodb");
-
-
-app.get("/searchserviceno/:areacode/:serviceno", async (req, res) => {
+// Connect to MongoDB once and reuse the connection
+const connectToMongoDB = async () => {
   try {
-    const client = new MongoClient(URL);
+    client = new MongoClient(URL, { maxPoolSize: 10 });
     await client.connect();
-    await client.db("admin").command({ ping: 1 });
-    const dbName = "apepdclConsumers";
-    const db = client.db(dbName);
-    const collectionName = ( req.params.areacode.toString() + "_CONSUMERS").toUpperCase();
-    const serviceno = req.params.serviceno.toString();
-    let collection = db.collection(collectionName);
-    let result = await collection.findOne({ SERVICE_NO: serviceno });
-    res.send(result);
+    db = client.db("apepdclConsumers");
+    console.log('Connected to MongoDB');
   } catch (err) {
-    console.log(err);
+    console.error('Failed to connect to MongoDB', err);
+    process.exit(1); // Exit if we cannot connect to the database
+  }
+};
+
+connectToMongoDB();
+
+// Define your routes
+app.get('/searchserviceno/:areacode/:serviceno', async (req, res) => {
+  try {
+    const collectionName = `${req.params.areacode.toString()}_CONSUMERS`.toUpperCase();
+    const serviceno = req.params.serviceno.toString();
+    const collection = db.collection(collectionName);
+    const result = await collection.findOne({ SERVICE_NO: serviceno });
+
+    if (!result) {
+      return res.status(404).json({ error: 'Service number not found' });
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('Error in /searchserviceno/:areacode/:serviceno:', err);
+    res.status(500).send('Server Error');
   }
 });
 
-app.get("/searchareacode/:areacode",async (req,res)=>{
+app.get('/searchareacode/:areacode', async (req, res) => {
   try {
-    const client = new MongoClient(URL);
-    await client.connect();
-    await client.db("admin").command({ ping: 1 });
-    const dbName = "apepdclConsumers";
-    const db = client.db(dbName);
-    const collectionName = ( req.params.areacode.toString() + "_CONSUMERS").toUpperCase();
-    let collection = db.collection(collectionName);
-    let result = await collection.find({}).toArray();
+    const collectionName = `${req.params.areacode.toString()}_CONSUMERS`.toUpperCase();
+    const collection = db.collection(collectionName);
+    const result = await collection.find({}).toArray();
     res.send(result);
   } catch (err) {
-    console.log(err);
+    console.error('Error in /searchareacode/:areacode:', err);
+    res.status(500).send('Server Error');
   }
-})
+});
 
-
-app.post("/updateconsumer/:areacode/:serviceno",async (req,res)=>{
+app.post('/updateconsumer/:areacode/:serviceno', async (req, res) => {
   try {
     const receivedData = req.body;
-
-    const client = new MongoClient(URL);
-    await client.connect();
-    await client.db("admin").command({ ping: 1 });
-    const dbName = "apepdclConsumers";
-    const db = client.db(dbName);
     const areacode = req.params.areacode.toString();
-    const collectionName = ( areacode + "_CONSUMERS").toUpperCase();
+    const collectionName = `${areacode}_CONSUMERS`.toUpperCase();
     const serviceno = req.params.serviceno.toString().toUpperCase();
-    let collection = db.collection(collectionName);
-    let result = await collection.updateOne({ SERVICE_NO: serviceno },{$set:receivedData});
-    res.send({AREA_CODE:areacode,SERVICE_NO:serviceno,result:result});
+    const collection = db.collection(collectionName);
+    const result = await collection.updateOne({ SERVICE_NO: serviceno }, { $set: receivedData });
 
+    res.send({ AREA_CODE: areacode, SERVICE_NO: serviceno, result: result });
   } catch (err) {
-    console.log(err);
+    console.error('Error in /updateconsumer/:areacode/:serviceno:', err);
+    res.status(500).send('Server Error');
   }
+});
 
-})
+// Graceful shutdown
+const shutdown = async (signal) => {
+  console.log(`Received ${signal}. Closing MongoDB connection...`);
+  await client.close();
+  console.log('MongoDB connection closed. Exiting process...');
+  process.exit(0);
+};
 
-app.listen(PORT, (_) => console.log(`Server running on port ${PORT}`));
+// Handle termination signals
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
