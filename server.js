@@ -105,6 +105,35 @@ app.post("/addconsumer/:areacode", async (req, res) => {
   }
 });
 
+app.post("/addlogdata", async (req, res) => {
+  try {
+    const receivedData = req.body;
+    const collection = db.collection("logbook");
+    const result = await collection.insertOne(receivedData);
+    if(result){
+      res.send({uploaded:true})
+    }else{
+      res.send({uploaded:false})
+    }
+  } catch (err) {
+    console.error("Error in /addconsumer/:areacode", err);
+    res.status(500).send("Server Error");
+  }
+});
+
+
+app.get("/getlogdata",async (req,res)=>{
+  try {
+    const collection = db.collection("logbook");
+    const result = await collection.find({}).toArray();
+    res.send(result);
+  } catch (err) {
+    console.error("Error in /searchareacode/:areacode:", err);
+    res.status(500).send("Server Error");
+  }
+
+})
+
 // Graceful shutdown
 const shutdown = async (signal) => {
   console.log(`Received ${signal}. Closing MongoDB connection...`);
