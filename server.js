@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const { MongoClient } = require("mongodb");
+const { MongoClient, ObjectId } = require("mongodb");
 
 const app = express();
 app.use(bodyParser.json());
@@ -131,7 +131,18 @@ app.get("/getlogdata",async (req,res)=>{
     console.error("Error in /searchareacode/:areacode:", err);
     res.status(500).send("Server Error");
   }
+})
 
+app.delete("/deletelogdata",async (req,res)=>{
+  try{
+    const id = req.query.id;
+    const collection = db.collection("logbook");
+    const result = await collection.deleteOne({_id:new ObjectId(id)})
+    res.send(result);
+  }catch(err){
+    console.error("Error in /searchareacode/:areacode:", err);
+    res.status(500).send("Server Error");
+  }
 })
 
 // Graceful shutdown
